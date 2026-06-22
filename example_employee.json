@@ -1,0 +1,12 @@
+{
+  "payload": {
+    "employee_id": "e001",
+    "first_name": "Ada",
+    "last_name": "Lovelace",
+    "email": "ada@example.com",
+    "date_of_birth": "1990-01-01",
+    "hire_date": "2020-05-20",
+    "department": "ENGINEERING",
+    "employment_type": "FULL_TIME"
+  }
+}
