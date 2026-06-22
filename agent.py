@@ -5,7 +5,7 @@ from portkey_ai import Portkey
 
 portkey = Portkey(
     api_key=os.getenv("PORTKEY_API_KEY"),
-    base_url="https://aigateway.jhuapl.edu/v1"
+    base_url=os.getenv("PORTKEY_BASE_URL")
 )
 
 TOOLS = [

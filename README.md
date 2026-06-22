@@ -31,6 +31,7 @@ A conversational HR management system that allows administrators to manage emplo
     Create a `.env` file in the root directory and add your keys:
     EMPLOYEE_API_KEY=your_api_key_here
     PORTKEY_API_KEY=your_portkey_key_here
+    PORTKEY_BASE_URL=your_gateway_url_here
 
 ## How to Run
 
