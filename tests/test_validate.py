@@ -4,7 +4,6 @@ import httpx
 import os
 from httpx import AsyncClient, ASGITransport
 
-# CORRECTED IMPORT: main.py is in the root, not inside the app folder
 import main as app_module
 
 app = app_module.app

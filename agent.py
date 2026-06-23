@@ -5,7 +5,7 @@ from portkey_ai import Portkey
 
 portkey = Portkey(
     api_key=os.getenv("PORTKEY_API_KEY"),
-    base_url=os.getenv("PORTKEY_BASE_URL")
+    base_url=os.getenv("PORTKEY_BASE_URL"),
 )
 
 TOOLS = [
@@ -79,7 +79,7 @@ TOOLS = [
             },
         },  
     },
-        {
+    {
         "type": "function",
         "function": {
             "name": "search_employees",
@@ -93,39 +93,80 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "count_employees",
+            "description": "Get the total number of employees currently in the system.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_employees",
+            "description": "Retrieve a list of all employees in the system, including their names and IDs.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_date",
+            "description": "Get the current date to be used as a reference for all age and tenure calculations.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
 ]
 
 def run_agentic_workflow(user_input: str, tool_executor, history=None):
+    system_prompt = (
+        "You are a precise and professional HR Assistant. "
+        "IMPORTANT: Your internal knowledge of the current date is outdated and incorrect. "
+        "Whenever a user asks for the current date, year, or time, you MUST use the `get_current_date` tool. "
+        "Do not guess the date based on your training data. "
+        "\n\n"
+        "Use the provided tools to manage employee records. "
+        "CRITICAL LOGIC: Before updating a record, you MUST call fetch_employee. "
+        "Compare the fetched record with the new data. If the data is identical, DO NOT call update_employee; "
+        "instead, inform the user the record is already up to date. "
+        "ANTI-HALLUCINATION: If a tool requires arguments that the user has not provided, "
+        "DO NOT invent or assume values. Instead, ask the user to provide the missing information. "
+        "NATURAL TONE: Do not explain your internal reasoning, tool-selection process, or comparison steps to the user. "
+        "Simply perform the action and provide a concise, natural language confirmation of the result."
+    )
+
     if history is None or len(history) == 0:
         messages = [
-            {
-                "role": "system", 
-                "content": (
-                    "You are a precise HR Assistant. Use the provided tools to validate, manage, and update employee records. "
-                    "CRITICAL LOGIC: Before updating, you MUST call fetch_employee. "
-                    "Compare the fetched record with the provided data. "
-                    "If the data is identical, DO NOT call update_employee. Instead, tell the user that the record is already up to date. "
-                    "Only use update_employee if at least one field is different. "
-                    "Always provide a friendly, natural language response to the user after using your tools."
-                )
-            },
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input}
         ]
     else:
-        messages = [
-            {
-                "role": "system", 
-                "content": "You are a precise HR Assistant. Use the provided tools to validate, manage, and update employee records."
-            }
-        ] + history + [{"role": "user", "content": user_input}]
+        messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": user_input}]
 
     for _ in range(5):
         try:
-            response = portkey.chat.completions.create(
-                model="@azure-eagle_cui/o3-mini",
+            response = portkey.openai_client.chat.completions.create(
+                model="@opal/meta-llama/Llama-3.3-70B-Instruct",
                 messages=messages,
                 tools=TOOLS,
-                tool_choice="auto"
+                tool_choice="auto",
+                extra_headers={
+                    "x-portkey-config": os.getenv("PORTKEY_CONFIG_ID"),
+                    "x-portkey-metadata": json.dumps({
+                        "user_id": "demo_user",
+                        "project_id": os.getenv("PORTKEY_CONFIG_ID")
+                    })
+                }
             )
         except Exception as e:
             traceback.print_exc()
@@ -138,10 +179,21 @@ def run_agentic_workflow(user_input: str, tool_executor, history=None):
             return response_message.content, messages
 
         if response_message.tool_calls:
+            tool_calls_as_dicts = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                } for tc in response_message.tool_calls
+            ]
+
             messages.append({
                 "role": "assistant", 
-                "content": None, 
-                "tool_calls": response_message.tool_calls
+                "content": "", 
+                "tool_calls": tool_calls_as_dicts
             })
             
             for tool_call in response_message.tool_calls:

@@ -28,8 +28,8 @@ from fastapi import FastAPI, HTTPException, APIRouter, status, Depends, Header
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, SQLModel, create_engine, select, or_
+from sqlalchemy import func
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 
 from app.enums import Department, EmploymentType
 from app.schemas import ValidateRequest, EmployeeInfo
@@ -94,7 +94,6 @@ def delete_employee(employee_id: str) -> dict:
         session.commit()
         return {"success": True, "message": f"Employee {employee_id} deleted successfully"}
 
-
 def search_employees(name_query: str) -> dict:
     with Session(engine) as session:
         search_words = name_query.split()
@@ -115,6 +114,30 @@ def search_employees(name_query: str) -> dict:
             for e in results
         ]
         return {"found": True, "results": employee_list}
+
+def count_employees() -> dict:
+    with Session(engine) as session:
+        stmt = select(func.count()).select_from(EmployeeDB)
+        count = session.exec(stmt).one()
+        return {"total_employees": count}
+
+def list_employees() -> dict:
+    with Session(engine) as session:
+        stmt = select(EmployeeDB)
+        results = session.exec(stmt).all()
+        employee_list = [
+            {
+                "employee_id": e.employee_id, 
+                "name": f"{e.first_name} {e.last_name}",
+                "department": e.department,
+                "date_of_birth": str(e.date_of_birth)
+            } 
+            for e in results
+        ]
+        return {"employees": employee_list}
+
+def get_current_date() -> dict:
+    return {"current_date": "June 2026"}
 
 app = FastAPI(title="Agentic Employee Validator API")
 
@@ -172,6 +195,12 @@ async def validate_employee(req: ValidateRequest):
             return delete_employee(args.get("employee_id"))
         elif name == "search_employees":
             return search_employees(args.get("name_query"))
+        elif name == "count_employees":
+            return count_employees()
+        elif name == "list_employees":
+            return list_employees()
+        elif name == "get_current_date":
+            return get_current_date()
         return {"error": f"Tool {name} not recognized."}
 
     user_prompt = f"Please process the following employee record: {employee.model_dump_json()}"
@@ -217,6 +246,12 @@ async def chat_with_agent(req: ChatRequest):
             return delete_employee(args.get("employee_id"))
         elif name == "search_employees":
             return search_employees(args.get("name_query"))
+        elif name == "count_employees":
+            return count_employees()
+        elif name == "list_employees":
+            return list_employees()
+        elif name == "get_current_date":
+            return get_current_date()
         return {"error": f"Tool {name} not recognized."}
 
     try:
