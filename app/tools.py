@@ -104,3 +104,80 @@ TOOL_MAP = {
     "list_employees": list_employees,
     "get_current_date": get_current_date,
 }
+
+# app/tools.py
+
+from sqlalchemy import func # Ensure func is imported
+
+# ... keep your existing tools ...
+
+def get_department_stats() -> dict:
+    """Returns the number of employees in each department."""
+    with Session(engine) as session:
+        # SQL: SELECT department, count(employee_id) FROM employee GROUP BY department
+        stmt = select(EmployeeDB.department, func.count(EmployeeDB.employee_id)).group_by(EmployeeDB.department)
+        results = session.exec(stmt).all()
+        
+        stats = {dept: count for dept, count in results}
+        return {"department_counts": stats}
+
+def get_employment_type_stats() -> dict:
+    """Returns the number of employees by employment type (Full-time, Part-time, etc)."""
+    with Session(engine) as session:
+        stmt = select(EmployeeDB.employment_type, func.count(EmployeeDB.employee_id)).group_by(EmployeeDB.employment_type)
+        results = session.exec(stmt).all()
+        
+        stats = {etype: count for etype, count in results}
+        return {"employment_type_counts": stats}
+
+def get_age_statistics() -> dict:
+    """Calculates the oldest and youngest employee in the system."""
+    with Session(engine) as session:
+        # Fetch all DOBs to calculate age in Python (since SQLite date math is limited)
+        stmt = select(EmployeeDB.first_name, EmployeeDB.last_name, EmployeeDB.date_of_birth)
+        results = session.exec(stmt).all()
+        
+        if not results:
+            return {"error": "No employees found to calculate statistics."}
+        
+        # Use the current reference date (June 2026)
+        from datetime import datetime
+        current_year = 2026
+        
+        ages = []
+        names = []
+        for first, last, dob in results:
+            if dob:
+                year = int(str(dob).split('-')[0])
+                ages.append(current_year - year)
+                names.append(f"{first} {last}")
+        
+        if not ages:
+            return {"error": "No valid dates of birth found."}
+            
+        max_age = max(ages)
+        min_age = min(ages)
+        
+        return {
+            "oldest_age": max_age,
+            "youngest_age": min_age,
+            "oldest_person": names[ages.index(max_age)],
+            "youngest_person": names[ages.index(min_age)],
+            "average_age": sum(ages) / len(ages)
+        }
+
+# IMPORTANT: Update your TOOL_MAP at the bottom of tools.py
+TOOL_MAP = {
+    "fetch_employee": fetch_employee,
+    "create_employee": create_employee,
+    "update_employee": update_employee,
+    "delete_employee": delete_employee,
+    "search_employees": search_employees,
+    "count_employees": count_employees,
+    "list_employees": list_employees,
+    "get_current_date": get_current_date,
+    # New Analyst Tools
+    "get_department_stats": get_department_stats,
+    "get_employment_type_stats": get_employment_type_stats,
+    "get_age_statistics": get_age_statistics,
+}

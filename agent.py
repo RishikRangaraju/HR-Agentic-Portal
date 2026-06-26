@@ -126,6 +126,41 @@ TOOLS = [
             },
         },
     },
+    {
+
+
+        "type": "function",
+        "function": {
+            "name": "get_department_stats",
+            "description": "Get a count of how many employees are in each department.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_employment_type_stats",
+            "description": "Get a count of employees by their employment type (e.g., FULL_TIME, CONTRACTOR).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_age_statistics",
+            "description": "Get high-level age statistics including the oldest, youngest, and average age of all employees.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
 ]
 
 def run_agentic_workflow(user_input: str, tool_executor, history=None):
