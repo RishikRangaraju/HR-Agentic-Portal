@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 from datetime import date
+import json
 
 API_URL_CHAT = "http://127.0.0.1:8000/chat"
 API_URL_VALIDATE = "http://127.0.0.1:8000/validate"
@@ -97,30 +98,58 @@ with tab_chat:
         
         with chat_container:
             with st.chat_message("assistant"):
-                status_placeholder = st.empty()
-                status_placeholder.markdown(" thoughtfully processing...")
-                
-                payload = {
-                    "message": prompt, 
-                    "history": st.session_state.messages[:-1] 
-                }
-                headers = {"x-api-key": api_key, "Content-Type": "application/json"}
-                
-                try:
-                    response = requests.post(API_URL_CHAT, json=payload, headers=headers)
-                    if response.status_code == 200:
-                        data = response.json()
-                        ai_answer = data["agent_response"]
+                # Open the status container
+                with st.status("Agent is thinking...", expanded=True) as status:
+                    
+                    payload = {
+                        "message": prompt, 
+                        "history": st.session_state.messages[:-1] 
+                    }
+                    headers = {"x-api-key": api_key, "Content-Type": "application/json"}
+                    
+                    try:
+                        # CRITICAL: stream=True tells requests to not download everything at once
+                        response = requests.post(API_URL_CHAT, json=payload, headers=headers, stream=True)
                         
-                        status_placeholder.empty()
-                        st.markdown(ai_answer)
-                        
-                        st.session_state.messages = data["history"]
-                    elif response.status_code == 401:
-                        status_placeholder.error("Invalid API Key.")
-                    else:
-                        status_placeholder.error(f"Error: {response.status_code}")
-                except Exception as e:
-                    status_placeholder.error(f"Connection error: {e}")
+                        if response.status_code == 200:
+                            final_ai_answer = ""
+                            
+                            # Iterate over the stream line by line
+                            for line in response.iter_lines():
+                                if line:
+                                    # Parse the JSON chunk
+                                    chunk = json.loads(line.decode('utf-8'))
+                                    
+                                    if chunk.get("type") == "step":
+                                        node = chunk["node"]
+                                        detail = chunk.get("detail", "Processing...")
+                                        if node == "agent":
+                                            st.write(f"🧠 **Thought:** {detail}")
+                                        elif node == "tools":
+                                            st.write(f"🛠️ **Action:** {detail}")
+                                    
+                                    elif chunk.get("type") == "final":
+                                        final_ai_answer = chunk.get("answer", "")
+                                    
+                                    elif chunk.get("type") == "error":
+                                        st.error(f"Agent Error: {chunk.get('message')}")
+                            
+                            status.update(label="Processing complete!", state="complete", expanded=False)
+                            
+                            if final_ai_answer:
+                                st.markdown(final_ai_answer)
+                                st.session_state.messages.append({"role": "assistant", "content": final_ai_answer})
+                            else:
+                                st.error("Agent failed to produce a final answer.")
+                                
+                        elif response.status_code == 401:
+                            status.update(label="Authentication Error", state="error")
+                            st.error("Invalid API Key.")
+                        else:
+                            status.update(label="Server Error", state="error")
+                            st.error(f"Error: {response.status_code}")
+                    except Exception as e:
+                        status.update(label="Connection Error", state="error")
+                        st.error(f"Connection error: {e}")
         
         st.rerun()
