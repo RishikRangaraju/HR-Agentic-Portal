@@ -84,9 +84,14 @@ with tab_chat:
 
     with chat_container:
         for msg in st.session_state.messages:
-            if msg["role"] in ["user", "assistant"] and msg.get("content"):
+            if msg["role"] in ["user", "assistant"]:
                 with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
+                    if msg.get("content"):
+                        st.markdown(msg["content"])
+                    # NEW: Display thought process if it exists in the message history
+                    if msg.get("thought"):
+                        with st.expander("View Thought Process"):
+                            st.markdown(msg["thought"])
 
     if prompt := st.chat_input("e.g., 'Is Jordan Bell in the system?'"):
         
@@ -113,6 +118,7 @@ with tab_chat:
                         
                         if response.status_code == 200:
                             final_ai_answer = ""
+                            final_thought = ""
                             
                             # Iterate over the stream line by line
                             for line in response.iter_lines():
@@ -130,6 +136,7 @@ with tab_chat:
                                     
                                     elif chunk.get("type") == "final":
                                         final_ai_answer = chunk.get("answer", "")
+                                        final_thought = chunk.get("thought", "") # <--- ADD THIS LINE
                                     
                                     elif chunk.get("type") == "error":
                                         st.error(f"Agent Error: {chunk.get('message')}")
@@ -138,7 +145,11 @@ with tab_chat:
                             
                             if final_ai_answer:
                                 st.markdown(final_ai_answer)
-                                st.session_state.messages.append({"role": "assistant", "content": final_ai_answer})
+                                st.session_state.messages.append({
+                                    "role": "assistant", 
+                                    "content": final_ai_answer,
+                                    "thought": final_thought 
+                                })
                             else:
                                 st.error("Agent failed to produce a final answer.")
                                 

@@ -87,30 +87,39 @@ async def chat_with_agent(req: ChatRequest):
     async def event_generator():
         try:
             final_answer = ""
-            # Stream the graph events
+            thought_steps = []  # <--- 1. Initialize a list to track thoughts
+            
             for event in app_graph.stream(initial_state):
                 for node_name, output in event.items():
                     step_info = {"type": "step", "node": node_name}
+                    detail_text = "" # Track the text for the summary
                     
                     if node_name == "tools":
                         tool_calls = []
                         for msg in output.get("messages", []):
                             if hasattr(msg, 'content'):
-                                step_info["detail"] = f"Tool executed. Result: {msg.content[:100]}..."
+                                detail_text = f"🛠️ Tool executed: {msg.content[:100]}..."
                     elif node_name == "agent":
                         last_msg = output.get("messages", [])[-1]
                         if hasattr(last_msg, 'tool_calls') and last_msg.tool_calls:
                             tool_names = [tc['name'] for tc in last_msg.tool_calls]
-                            step_info["detail"] = f"Thinking... calling tools: {', '.join(tool_names)}"
+                            detail_text = f"🧠 Thinking... calling tools: {', '.join(tool_names)}"
                         else:
-                            step_info["detail"] = "Finalizing response..."
+                            detail_text = "✅ Finalizing response..."
                             final_answer = last_msg.content
                     
-                    # Yield as a single line of JSON followed by a newline
+                    if detail_text:
+                        step_info["detail"] = detail_text
+                        thought_steps.append(detail_text) # <--- 2. Store the step
+                    
                     yield json.dumps(step_info) + "\n"
             
-            # Finally, yield the final answer as a separate event
-            yield json.dumps({"type": "final", "answer": final_answer}) + "\n"
+            # 3. Include the joined thought process in the final event
+            yield json.dumps({
+                "type": "final", 
+                "answer": final_answer, 
+                "thought": "\n".join(thought_steps) 
+            }) + "\n"
             
         except Exception as e:
             yield json.dumps({"type": "error", "message": str(e)}) + "\n"
